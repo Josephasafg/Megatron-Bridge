@@ -234,6 +234,7 @@ def build_preference_data_loader(
     pin_memory: bool = True,
     worker_init_fn: Callable[[int], None] | None = None,
     shuffle: bool = True,
+    seed: int | None = None,
 ) -> DataLoader:
     """Build a DPO loader from row-denominated sizes (one pair == two rows), halved here for the stock loader."""
     if micro_batch_size % 2 != 0 or global_batch_size % 2 != 0:
@@ -267,4 +268,5 @@ def build_preference_data_loader(
         data_parallel_size=data_parallel_size,
         drop_last=True,
         shuffle=shuffle,
+        seed=seed,
     )

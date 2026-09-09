@@ -9,26 +9,7 @@ from megatron.bridge.data.batch_utils import split_batch_into_microbatches
 from megatron.bridge.data.datasets.preference import build_preference_data_loader
 from megatron.bridge.data.datasets.preference_lazy import LazyChatPreferencePairDataset
 from megatron.bridge.data.datasets.preference_tokenization import build_pair_conversations, tokenize_conversation
-
-
-USER_HEADER, ASSISTANT_HEADER = 1, 2
-
-
-class FakeChatTokenizer:
-    """Chat-template stub (header token per message, token per word) with the prefix
-    property by construction: add_generation_prompt appends the assistant header."""
-
-    pad_token_id = 0
-    eos_token_id = 9
-
-    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=False):
-        ids = []
-        for message in messages:
-            ids.append(ASSISTANT_HEADER if message["role"] == "assistant" else USER_HEADER)
-            ids.extend(100 + len(word) for word in message["content"].split())
-        if add_generation_prompt:
-            ids.append(ASSISTANT_HEADER)
-        return ids
+from tests.unit_tests.data.preference_fakes import ASSISTANT_HEADER, USER_HEADER, FakeChatTokenizer
 
 
 class BatchEncodingChatTokenizer(FakeChatTokenizer):

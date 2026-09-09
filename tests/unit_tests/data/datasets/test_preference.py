@@ -109,6 +109,21 @@ def test_pair_adjacency_and_epoch_coverage(dp_size, mbs_rows):
         assert len(step_pairs) == len(set(step_pairs)), "ranks must not overlap within a step"
 
 
+def test_seed_reaches_the_batch_sampler():
+    """Every DP rank must shuffle with the config seed, not its rank-local torch seed."""
+    loader = build_preference_data_loader(
+        dataset=RecordsDataset(make_records(8)),
+        micro_batch_size=2,
+        global_batch_size=4,
+        data_parallel_rank=0,
+        data_parallel_size=1,
+        consumed_samples=0,
+        pin_memory=False,
+        seed=4321,
+    )
+    assert loader.batch_sampler.seed == 4321
+
+
 def test_shuffle_false_consumes_pairs_in_source_row_order():
     """shuffle=False must yield pair ids exactly in dataset order — the contract
     step-synchronized parity runs against an external trainer rely on."""
