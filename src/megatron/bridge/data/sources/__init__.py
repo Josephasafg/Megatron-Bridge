@@ -15,6 +15,7 @@
 """Declarative dataset source APIs."""
 
 from megatron.bridge.data.sources.hf import HFDatasetSourceConfig
+from megatron.bridge.data.sources.jsonl import PreferenceJSONLSource
 
 
-__all__ = ["HFDatasetSourceConfig"]
+__all__ = ["HFDatasetSourceConfig", "PreferenceJSONLSource"]
