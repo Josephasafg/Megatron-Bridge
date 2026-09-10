@@ -25,6 +25,7 @@ import torch
 
 from megatron.bridge.data.builders import (
     DirectHFSFTDatasetConfig,
+    DPODatasetConfig,
     EnergonDatasetConfig,
     GPTSFTDatasetConfig,
     HFDatasetSourceConfig,
@@ -1437,6 +1438,34 @@ class TestConfigContainerValidation:
         try:
             container.validate()
             assert dataset_cfg.pad_to_multiple_of == 24
+        finally:
+            restore_get_world_size_safe(og_ws, cfg_mod)
+
+    def test_dpo_dataset_pads_to_the_sequence_parallel_multiple(self):
+        """DPO batches are padded dynamically, so SP needs the collate width to be a TP multiple."""
+        gpt_model_cfg = create_test_gpt_config(
+            tensor_model_parallel_size=4,
+            sequence_parallel=True,
+            calculate_per_token_loss=True,
+        )
+        train_cfg = create_test_training_config(micro_batch_size=2, global_batch_size=8)
+        dataset_cfg = DPODatasetConfig(
+            tokenizer_name="org/some-model",
+            seq_length=512,
+            source=HFDatasetSourceConfig(path_or_dataset="org/some-preference-set", split="train"),
+        )
+
+        container, og_ws, cfg_mod = create_test_config_container(
+            world_size_override=4,
+            model_config=gpt_model_cfg,
+            train_config=train_cfg,
+            dataset_config_override=dataset_cfg,
+        )
+        container.ddp.average_in_collective = False
+
+        try:
+            container.validate()
+            assert dataset_cfg.pad_seq_length_to_mult == 4
         finally:
             restore_get_world_size_safe(og_ws, cfg_mod)
 
