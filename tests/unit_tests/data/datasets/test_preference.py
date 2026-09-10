@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from functools import partial
 
 import pytest
@@ -8,6 +9,7 @@ from torch.utils.data import Dataset
 from megatron.bridge.data.batch_utils import split_batch_into_microbatches
 from megatron.bridge.data.datasets.preference import (
     REF_LOGPROB_COLUMNS,
+    ScoringFingerprint,
     build_preference_data_loader,
     load_ref_logprobs,
     pack_pairs_by_token_budget,
@@ -278,36 +280,50 @@ def test_load_ref_logprobs_from_disk(tmp_path):
         load_ref_logprobs(str(tmp_path), expected_num_pairs=4)
 
 
-def write_metadata(tmp_path, **overrides) -> str:
-    metadata = {"dataset": "d", "split": "train", "max_seq_length": 2048}
-    metadata.update(overrides)
+def fingerprint(**overrides) -> ScoringFingerprint:
+    fields = {
+        "dataset": "d",
+        "split": "train",
+        "tokenizer": "org/model",
+        "max_seq_length": 2048,
+        "prompt_key": None,
+        "tensor_model_parallel_size": 1,
+        "sequence_parallel": False,
+        "pipeline_model_parallel_size": 1,
+    }
+    fields.update(overrides)
+    return ScoringFingerprint(**fields)
+
+
+def write_metadata(tmp_path, drop: tuple[str, ...] = ()) -> str:
+    metadata = {key: value for key, value in asdict(fingerprint()).items() if key not in drop}
     (tmp_path / "scoring_metadata.json").write_text(json.dumps(metadata))
     return str(tmp_path)
 
 
-def test_validate_scoring_metadata_passes_on_match(tmp_path):
+def test_validate_scoring_metadata_passes_on_match_and_returns_the_metadata(tmp_path):
     artifact = write_metadata(tmp_path)
-    validate_scoring_metadata(artifact, {"dataset": "d", "max_seq_length": 2048})
+    assert validate_scoring_metadata(artifact, fingerprint()) == asdict(fingerprint())
 
 
 def test_validate_scoring_metadata_reports_every_mismatched_key(tmp_path):
     artifact = write_metadata(tmp_path)
     with pytest.raises(ValueError) as exc_info:
-        validate_scoring_metadata(artifact, {"dataset": "other", "max_seq_length": 4096})
+        validate_scoring_metadata(artifact, fingerprint(dataset="other", max_seq_length=4096))
     message = str(exc_info.value)
     assert "dataset" in message and "max_seq_length" in message
     assert "'d'" in message and "'other'" in message  # artifact vs expected values shown
 
 
 def test_validate_scoring_metadata_missing_key_counts_as_mismatch(tmp_path):
-    artifact = write_metadata(tmp_path)
+    artifact = write_metadata(tmp_path, drop=("tokenizer",))
     with pytest.raises(ValueError, match="tokenizer"):
-        validate_scoring_metadata(artifact, {"tokenizer": "org/model"})
+        validate_scoring_metadata(artifact, fingerprint())
 
 
 def test_validate_scoring_metadata_missing_file_names_the_artifact(tmp_path):
     with pytest.raises(ValueError, match="scoring_metadata.json"):
-        validate_scoring_metadata(str(tmp_path), {"dataset": "d"})
+        validate_scoring_metadata(str(tmp_path), fingerprint())
 
 
 def test_write_and_load_ref_logprobs_round_trip_through_msc_with_no_staging(fake_msc):
@@ -315,13 +331,13 @@ def test_write_and_load_ref_logprobs_round_trip_through_msc_with_no_staging(fake
     rows = make_ref_rows(3)
 
     write_ref_logprobs(rows, url)
-    write_scoring_metadata({"dataset": "d"}, url)
+    write_scoring_metadata(asdict(fingerprint()), url)
 
     assert set(fake_msc.blobs) == {f"{url}/ref_logprobs.jsonl", f"{url}/scoring_metadata.json"}
 
     mapping = load_ref_logprobs(url, expected_num_pairs=3)
     assert mapping == ref_logprobs_from_rows(rows, 3)
-    validate_scoring_metadata(url, {"dataset": "d"})
+    validate_scoring_metadata(url, fingerprint())
 
 
 class _FakeLengthDataset:

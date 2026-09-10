@@ -14,6 +14,7 @@
 
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,20 @@ from megatron.bridge.data.samplers import build_pretraining_data_loader
 SCORING_METADATA_FILENAME = "scoring_metadata.json"
 
 REF_LOGPROBS_FILENAME = "ref_logprobs.jsonl"
+
+
+@dataclass(frozen=True)
+class ScoringFingerprint:
+    """Scoring-run inputs a training run must reproduce; written to and checked against ``scoring_metadata.json``."""
+
+    dataset: str
+    split: str | None
+    tokenizer: str
+    max_seq_length: int
+    prompt_key: str | None
+    tensor_model_parallel_size: int
+    sequence_parallel: bool
+    pipeline_model_parallel_size: int
 
 
 def _open_path(path: str, mode: str):
@@ -111,16 +126,19 @@ def read_scoring_metadata(artifact_dir: str) -> dict[str, Any]:
         ) from None
 
 
-def validate_scoring_metadata(artifact_dir: str, expected: Mapping[str, Any]) -> None:
-    """Raise if the artifact was scored under different inputs than ``expected``."""
+def validate_scoring_metadata(artifact_dir: str, expected: ScoringFingerprint) -> dict[str, Any]:
+    """Raise if the artifact was scored under different inputs than ``expected``; return its metadata."""
     metadata = read_scoring_metadata(artifact_dir)
-    mismatched = {key: (metadata.get(key), value) for key, value in expected.items() if metadata.get(key) != value}
+    mismatched = {
+        key: (metadata.get(key), value) for key, value in asdict(expected).items() if metadata.get(key) != value
+    }
     if mismatched:
         raise ValueError(
             f"scoring_metadata.json mismatch, artifact vs this run: {mismatched}. "
             "Re-score the reference logprobs or fix the training config — training against a "
             "differently-scored artifact silently corrupts every margin."
         )
+    return metadata
 
 
 def pair_token_lengths(dataset: Dataset) -> list[int]:
