@@ -97,7 +97,7 @@ class DPODatasetConfig(DataloaderConfig):
     TP | seq_len; ``dpo_train`` derives it from the model config, the scorer from its flags."""
     shuffle: bool = True
 
-    def _resolve_source(self, source: PreferenceSource, *, field: str) -> PreferenceSource:
+    def resolve_source(self, source: PreferenceSource, *, field: str) -> PreferenceSource:
         """Route a JSONL path to the memmap reader, then validate whichever source type results."""
         source = _as_source(source)
         if isinstance(source, HFDatasetSourceConfig) and (source.path_or_dataset or "").endswith(_JSONL_SUFFIXES):
@@ -115,11 +115,11 @@ class DPODatasetConfig(DataloaderConfig):
         if self.seq_length <= 0:
             raise ValueError("seq_length must be greater than 0.")
 
-        source = self._resolve_source(self.source, field="source")
+        source = self.resolve_source(self.source, field="source")
         validation_source = None
 
         if self.validation_source is not None:
-            validation_source = self._resolve_source(self.validation_source, field="validation_source")
+            validation_source = self.resolve_source(self.validation_source, field="validation_source")
             if not self.validation_ref_artifact:
                 raise ValueError(
                     "validation_ref_artifact must be set with a validation split: validation needs its own "

@@ -145,7 +145,7 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def dpo_source(args: argparse.Namespace) -> Prefere
+def dpo_source(args: argparse.Namespace) -> PreferenceSource:
     """The preference source these CLI args select; a path-shaped --dataset is routed to JSONL by the config."""
     if args.jsonl:
         return PreferenceJSONLSource(paths=list(args.jsonl), index_mapping_dir=args.index_mapping_dir)

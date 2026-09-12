@@ -139,10 +139,10 @@ scored source and artifact with trailing overrides, and at the reference
 weights with a local HF model directory:
 
 ```bash
-uv run python -m torch.distributed.run --nproc_per_node=1 \
+uv run python -m torch.distributed.run --nproc_per_node=8 \
     scripts/training/run_recipe.py \
-    --model qwen25_500m --mode dpo \
-    --pretrained_checkpoint /checkpoints/qwen2.5-0.5b-instruct \
+    --model qwen3_30b_a3b --mode dpo \
+    --pretrained_checkpoint /checkpoints/qwen3-30b-a3b \
     dataset.source.path_or_dataset=argilla/distilabel-capybara-dpo-7k-binarized \
     dataset.source.split=train \
     dataset.ref_artifact=msc://profile/bucket/capybara_ref_logprobs \
@@ -156,10 +156,9 @@ metadata, then delegates to the stock `finetune` loop with the `dpo_step`
 forward step from the shared registry.
 
 Multi-GPU: `--nproc_per_node = tp × dp`. Pass `-tp` matching the scoring
-run; the remaining ranks form the data-parallel group. At TP ≥ 2 the model's
-activations and weights are sharded, which relaxes the full-recompute
-requirement that 7B-class models need at `tp=1` (recipes carry their model's
-recompute settings; override via `model.recompute_granularity` if needed).
+run; the remaining ranks form the data-parallel group. Recipes carry their
+model's recompute settings; override via `model.recompute_granularity` if the
+measured headroom allows.
 
 ### Multinode
 
@@ -171,8 +170,8 @@ existing ref artifacts stay valid.
 
 Launch with any standard torchrun rendezvous (same command on every node,
 varying `--node_rank`). Every node needs the same code tree, the run-critical
-env (`CUDA_DEVICE_MAX_CONNECTIONS=1`, the allocator conf, model-specific vars
-like `QWEN35_CONVERSION_MODE`), the HF cache/token, the pretrained-checkpoint
+env (`CUDA_DEVICE_MAX_CONNECTIONS=1`, the allocator conf, any model-specific
+vars), the HF cache/token, the pretrained-checkpoint
 directory, and the ref artifacts readable at the same path. Batch math:
 `train.global_batch_size % (train.micro_batch_size × dp) == 0` — checked at
 startup.

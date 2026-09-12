@@ -137,7 +137,8 @@ def _warn_on_expert_layout_mismatch(config: ConfigContainer, artifact_dir: str, 
 def expected_scoring_metadata(
     config: ConfigContainer, split: Literal["train", "validation"] = "train"
 ) -> ScoringFingerprint:
-    source = config.dataset.validation_source if split == "validation" else config.dataset.source
+    field = "validation_source" if split == "validation" else "source"
+    source = config.dataset.resolve_source(getattr(config.dataset, field), field=field)
     dataset_key, source_split = config.dataset.source_identity(source)
     return ScoringFingerprint(
         dataset=dataset_key,
